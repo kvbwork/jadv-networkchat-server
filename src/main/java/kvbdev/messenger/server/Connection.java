@@ -16,7 +16,6 @@ public class Connection {
     private static final Charset DEFAULT_CHARSET = UTF_8;
     private static final int BUF_SIZE = 4096;
     private static final int SEPARATOR_CHAR = 10;     // '/n'
-    private static final long TIMEOUT_MILLIS = 60_000;
 
     private final ByteBuffer inputBuffer;
     private final Socket socket;
@@ -26,12 +25,12 @@ public class Connection {
 
     private Optional<UserContext> context = Optional.empty();
 
-    public Connection(Socket socket) throws IOException {
+    public Connection(Socket socket, long timeoutMillis) throws IOException {
         this.socket = socket;
         this.in = socket.getInputStream();
         this.out = socket.getOutputStream();
         this.inputBuffer = ByteBuffer.allocate(BUF_SIZE);
-        this.timeout = new Timeout(TIMEOUT_MILLIS);
+        this.timeout = new Timeout(timeoutMillis);
     }
 
     @Override
@@ -83,6 +82,7 @@ public class Connection {
                 keepAlive();
 
                 if (!inputBuffer.hasRemaining()) {
+                    inputBuffer.flip();
                     return Optional.of(readBufToString(inputBuffer));
                 }
 
@@ -94,6 +94,7 @@ public class Connection {
                 }
 
                 if (byteVal == SEPARATOR_CHAR) {
+                    inputBuffer.flip();
                     return Optional.of(readBufToString(inputBuffer).trim());
                 }
 
@@ -116,7 +117,6 @@ public class Connection {
     }
 
     protected String readBufToString(ByteBuffer byteBuffer) {
-        byteBuffer.flip();
         byte[] byteArray = new byte[byteBuffer.remaining()];
         byteBuffer.get(byteArray);
         String result = new String(byteArray, DEFAULT_CHARSET);

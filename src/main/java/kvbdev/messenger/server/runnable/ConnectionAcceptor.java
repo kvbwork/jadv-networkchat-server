@@ -10,6 +10,7 @@ import java.net.Socket;
 import java.util.function.Consumer;
 
 public class ConnectionAcceptor implements Runnable {
+    private static final long DEFAULT_CONNECTION_TIMEOUT = 60_000;
     private static final Logger logger = LoggerFactory.getLogger(ConnectionAcceptor.class);
     private final ServerSocket serverSocket;
     private final Consumer<Connection> onConnection;
@@ -22,15 +23,14 @@ public class ConnectionAcceptor implements Runnable {
     @Override
     public void run() {
         try {
-            while (true) {
-                if (serverSocket.isClosed() || Thread.currentThread().isInterrupted()) break;
+            while (!(serverSocket.isClosed() || Thread.currentThread().isInterrupted())) {
                 Socket clientSocket = serverSocket.accept();
                 try {
-                    Connection connection = new Connection(clientSocket);
+                    Connection connection = new Connection(clientSocket, DEFAULT_CONNECTION_TIMEOUT);
                     logger.debug("new {}", connection);
                     onConnection.accept(connection);
                 } catch (IOException ex) {
-                    logger.error("error connection creating for {}" + clientSocket);
+                    logger.error("error connection creating for {}", clientSocket);
                 }
             }
             serverSocket.close();
