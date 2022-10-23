@@ -8,8 +8,11 @@ import java.util.HashMap;
 import java.util.Map;
 
 public class CommandHandler implements ConnectionInputHandler {
-    private static final String COMMAND_PREFIX = "/";
-    private final Map<String, Command> commandMap = new HashMap<>();
+    protected final Map<String, Command> commandMap;
+
+    public CommandHandler() {
+        commandMap = new HashMap<>();
+    }
 
     public void register(Command command) {
         commandMap.put(command.getName(), command);
@@ -17,8 +20,6 @@ public class CommandHandler implements ConnectionInputHandler {
 
     @Override
     public boolean handle(String text, Connection connection) {
-        if (!text.startsWith(COMMAND_PREFIX)) return false;
-
         final int maxParts = 2;
         String[] parts = text.split(" ", maxParts);
         String command = parts[0];
