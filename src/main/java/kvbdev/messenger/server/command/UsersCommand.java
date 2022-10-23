@@ -1,24 +1,22 @@
 package kvbdev.messenger.server.command;
 
-import kvbdev.messenger.server.ChatRoom;
 import kvbdev.messenger.server.Connection;
-
-import java.util.stream.Collectors;
+import kvbdev.messenger.server.UserContext;
 
 public class UsersCommand extends AbstractCommand {
-    protected final ChatRoom chatRoom;
-
-    public UsersCommand(ChatRoom chatRoom) {
+    public UsersCommand() {
         super("/users");
-        this.chatRoom = chatRoom;
     }
 
     @Override
     public void accept(Connection connection, String param) {
         if (connection.getContext().isEmpty()) return;
+        UserContext context = connection.getContext().get();
 
-        String userNames = chatRoom.getUserNames().stream()
-                .collect(Collectors.joining(", "));
-        connection.writeLine(userNames);
+        context.getChatRoom().ifPresent(
+                chatRoom -> connection.writeLine(
+                        String.join(", ", chatRoom.getUserNames())
+                )
+        );
     }
 }
