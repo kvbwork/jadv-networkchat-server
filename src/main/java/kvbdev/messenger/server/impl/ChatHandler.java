@@ -6,7 +6,7 @@ import kvbdev.messenger.server.ConnectionInputHandler;
 import kvbdev.messenger.server.UserContext;
 
 public class ChatHandler implements ConnectionInputHandler {
-    private static final String COMMAND_PREFIX = "@";
+    public static final String WHISPER_PREFIX = "@";
 
     @Override
     public boolean handle(String text, Connection connection) {
@@ -19,11 +19,16 @@ public class ChatHandler implements ConnectionInputHandler {
 
         ChatRoom chatRoom = context.getChatRoom().get();
 
-        if (text.startsWith(COMMAND_PREFIX)) {
-            int spaceIndex = text.indexOf(" ");
-            if (spaceIndex == -1 || spaceIndex == (text.length() - 1)) return false;
-            String targetUserName = text.substring(1, spaceIndex);
-            String message = text.substring(spaceIndex + 1);
+        if (text.startsWith(WHISPER_PREFIX)) {
+            final int partsCount = 2;
+            String[] parts = text.split(" ", partsCount);
+            if (parts.length < partsCount) return false;
+            if (WHISPER_PREFIX.equals(parts[0].trim())) return false;
+
+            final int nameStartIndex = 1;
+            String targetUserName = parts[0].substring(nameStartIndex);
+            String message = parts[1];
+
             chatRoom.whisper(userName, targetUserName, message);
         } else {
             chatRoom.sendAll(userName, text);
