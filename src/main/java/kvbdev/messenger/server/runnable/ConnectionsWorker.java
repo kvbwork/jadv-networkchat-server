@@ -64,13 +64,4 @@ public class ConnectionsWorker implements Runnable {
                 });
     }
 
-    public void clear() {
-        logger.debug("close all connections: {}", connectionsStorage.size());
-        Iterator<Connection> iterator = connectionsStorage.iterator();
-        while (iterator.hasNext()) {
-            Connection connection = iterator.next();
-            connection.close();
-            iterator.remove();
-        }
-    }
 }
