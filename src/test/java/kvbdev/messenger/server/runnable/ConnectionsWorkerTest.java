@@ -5,13 +5,11 @@ import kvbdev.messenger.server.ConnectionInputHandler;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 import java.util.Collection;
 import java.util.List;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -72,7 +70,7 @@ class ConnectionsWorkerTest {
 
     @Test
     void connection_timeout_calls_close_success() throws InterruptedException {
-        when(testConnection.isTimeout()).thenReturn(true);
+        when(testConnection.isTimeout(anyLong())).thenReturn(true);
         connectionsWorkerThread.start();
         Thread.sleep(TICK_VALUE);
         verify(testConnection, atLeastOnce()).close();

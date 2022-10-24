@@ -17,10 +17,16 @@ public class ConnectionsWorker implements Runnable {
     protected final Collection<ConnectionInputHandler> handlers;
     protected final AtomicBoolean workPerformed;
 
+    protected long connectionTimeoutMillis = 60_000;
+
     public ConnectionsWorker(Collection<Connection> connectionsStorage, Collection<ConnectionInputHandler> handlers) {
         this.connectionsStorage = connectionsStorage;
         this.handlers = handlers;
         workPerformed = new AtomicBoolean(false);
+    }
+
+    public void setConnectionTimeout(long connectionTimeoutMillis) {
+        this.connectionTimeoutMillis = connectionTimeoutMillis;
     }
 
     @Override
@@ -33,7 +39,7 @@ public class ConnectionsWorker implements Runnable {
                 while (iterator.hasNext()) {
                     Connection connection = iterator.next();
 
-                    if (connection.isTimeout()) {
+                    if (connection.isTimeout(connectionTimeoutMillis)) {
                         logger.debug("{} timeout. Closing.", connection);
                         connection.close();
                     }
