@@ -12,7 +12,6 @@ import java.net.SocketException;
 import java.util.function.Consumer;
 
 public class ConnectionAcceptor implements Runnable, Closeable {
-    private static final long DEFAULT_CONNECTION_TIMEOUT = 60_000;
     private static final Logger logger = LoggerFactory.getLogger(ConnectionAcceptor.class);
 
     protected ServerSocket serverSocket;
@@ -29,7 +28,7 @@ public class ConnectionAcceptor implements Runnable, Closeable {
             while (!(serverSocket.isClosed() || Thread.currentThread().isInterrupted())) {
                 Socket clientSocket = serverSocket.accept();
                 try {
-                    Connection connection = new Connection(clientSocket, DEFAULT_CONNECTION_TIMEOUT);
+                    Connection connection = new Connection(clientSocket);
                     logger.debug("new {}", connection);
                     onConnection.accept(connection);
                 } catch (IOException ex) {

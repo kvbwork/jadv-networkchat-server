@@ -10,11 +10,12 @@ import java.net.Socket;
 import java.util.function.Consumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.*;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 class ConnectionAcceptorTest {
 
-    static class CallbackConnectionHolder implements Consumer<Connection>{
+    static class CallbackConnectionHolder implements Consumer<Connection> {
         Connection connection;
 
         @Override
@@ -37,7 +38,7 @@ class ConnectionAcceptorTest {
 
     @BeforeEach
     void setUp() throws IOException {
-        callbackConnectionHolder = new CallbackConnectionHolder() ;
+        callbackConnectionHolder = new CallbackConnectionHolder();
         connectionAcceptor = new ConnectionAcceptor(TEST_PORT, callbackConnectionHolder);
         connectionAcceptorThread = new Thread(connectionAcceptor);
         connectionAcceptorThread.start();
