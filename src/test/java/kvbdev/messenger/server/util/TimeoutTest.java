@@ -13,43 +13,42 @@ class TimeoutTest {
 
     @Test
     void isTimeout_true_success() throws InterruptedException {
-        Timeout timeout = new Timeout(TEST_TIMEOUT);
+        Timeout timeout = new Timeout();
         long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
         TimeUnit.MILLISECONDS.sleep(sleepValue);
-        assertThat(timeout.isTimeout(), is(true));
+        assertThat(timeout.isTimeout(TEST_TIMEOUT), is(true));
     }
 
     @Test
     void isTimeout_false_success() throws InterruptedException {
-        Timeout timeout = new Timeout(TEST_TIMEOUT);
+        Timeout timeout = new Timeout();
         long sleepValue = TEST_TIMEOUT - TEST_TIMEOUT_STEP;
         TimeUnit.MILLISECONDS.sleep(sleepValue);
-        assertThat(timeout.isTimeout(), is(false));
+        assertThat(timeout.isTimeout(TEST_TIMEOUT), is(false));
     }
 
     @Test
     void isTimeout_infinite_false_success() throws InterruptedException {
-        Timeout timeout = new Timeout(0L);
+        Timeout timeout = new Timeout();
         long sleepValue = TEST_TIMEOUT;
         TimeUnit.MILLISECONDS.sleep(sleepValue);
-        assertThat(timeout.isTimeout(), is(false));
+        assertThat(timeout.isTimeout(0), is(false));
     }
 
-
     @Test
-    void updateActivity() throws InterruptedException {
-        Timeout timeout = new Timeout(TEST_TIMEOUT);
+    void update_success() throws InterruptedException {
+        Timeout timeout = new Timeout();
         long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
 
         TimeUnit.MILLISECONDS.sleep(sleepValue);
-        boolean timeoutFlag1 = timeout.isTimeout();
+        boolean timeoutBeforeUpdate = timeout.isTimeout(TEST_TIMEOUT);
 
-        timeout.updateActivity();
+        timeout.update();
 
         TimeUnit.MILLISECONDS.sleep(TEST_TIMEOUT_STEP);
-        boolean timeoutFlag2 = timeout.isTimeout();
+        boolean timeoutAfterUpdate = timeout.isTimeout(TEST_TIMEOUT);
 
-        assertThat(timeoutFlag1, is(true));
-        assertThat(timeoutFlag2, is(false));
+        assertThat(timeoutBeforeUpdate, is(true));
+        assertThat(timeoutAfterUpdate, is(false));
     }
 }
