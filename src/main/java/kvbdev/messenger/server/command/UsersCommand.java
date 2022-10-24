@@ -1,7 +1,10 @@
 package kvbdev.messenger.server.command;
 
 import kvbdev.messenger.server.Connection;
+import kvbdev.messenger.server.User;
 import kvbdev.messenger.server.UserContext;
+
+import java.util.stream.Collectors;
 
 public class UsersCommand extends AbstractCommand {
     public UsersCommand() {
@@ -15,7 +18,10 @@ public class UsersCommand extends AbstractCommand {
 
         context.getChatRoom().ifPresent(
                 chatRoom -> connection.writeLine(
-                        String.join(", ", chatRoom.getUserNames())
+                        chatRoom.getUsers().stream()
+                                .map(UserContext::getUser)
+                                .map(User::getName)
+                                .collect(Collectors.joining(", "))
                 )
         );
     }
