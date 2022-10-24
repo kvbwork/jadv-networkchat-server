@@ -5,8 +5,9 @@ import kvbdev.messenger.server.UserContext;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.util.Collection;
+import java.util.Collections;
 import java.util.Optional;
-import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 
@@ -24,7 +25,8 @@ public class ChatRoomImpl implements ChatRoom {
         return this.chatRoomName;
     }
 
-    protected Optional<UserContext> findByName(String userName) {
+    @Override
+    public Optional<UserContext> findByName(String userName) {
         return Optional.ofNullable(chatUsersMap.get(userName));
     }
 
@@ -35,7 +37,7 @@ public class ChatRoomImpl implements ChatRoom {
         if (oldSession != null) unregister(oldSession);
 
         chatUsersMap.put(userName, userContext);
-        logger.debug("register '{}' into '{}'", userName, getRoomName() );
+        logger.debug("register '{}' into '{}'", userName, getRoomName());
     }
 
     @Override
@@ -46,39 +48,46 @@ public class ChatRoomImpl implements ChatRoom {
     }
 
     @Override
-    public Set<String> getUserNames() {
-        return chatUsersMap.keySet();
+    public Collection<UserContext> getUsers() {
+        return Collections.unmodifiableCollection(chatUsersMap.values());
     }
 
     @Override
-    public void sendAll(String sourceUserName, String text) {
-        if (text.isEmpty()) return;
-        String message = sourceUserName + ": " + text;
-        logger.trace("({}) {}: {}", getRoomName(), sourceUserName, text);
-        chatUsersMap.values().stream()
-                .filter(userContext -> !sourceUserName.equals(userContext.getUser().getName()))
-                .forEach(userContext -> userContext.getConnection().writeLine(message));
+    public boolean sendAll(String sourceUserName, String message) {
+        if (message == null || message.isEmpty()) return false;
+        String text = sourceUserName + ": " + message;
+
+        logger.trace("({}) {}: {}", getRoomName(), sourceUserName, message);
+        for (UserContext userContext : getUsers()) {
+            if (sourceUserName.equals(userContext.getUser().getName())) continue;
+            userContext.getConnection().writeLine(text);
+        }
+        return true;
     }
 
     @Override
-    public void whisper(String sourceUserName, String targetUserName, String text) {
-        if (text.isEmpty()) return;
-        String message = sourceUserName + " -> " + targetUserName + ": " + text;
-        logger.trace("({}) {} -> {}: {}", getRoomName(), sourceUserName, targetUserName, text);
+    public boolean whisper(String sourceUserName, String targetUserName, String message) {
+        if (message == null || message.isEmpty()) return false;
+        if (targetUserName == null || targetUserName.isEmpty()) return false;
+        String text = sourceUserName + " -> " + targetUserName + ": " + message;
+
+        logger.trace("({}) {} -> {}: {}", getRoomName(), sourceUserName, targetUserName, message);
         findByName(sourceUserName).ifPresent(
                 fromUser -> findByName(targetUserName).ifPresentOrElse(
-                        toUser -> toUser.getConnection().writeLine(message),
+                        toUser -> toUser.getConnection().writeLine(text),
                         () -> fromUser.getConnection().writeLine("user " + targetUserName + " not found")
                 )
         );
+        return true;
     }
 
     @Override
     public void dispose() {
-        chatUsersMap.values()
-                .forEach(userContext -> {
-                    userContext.setChatRoom(null);
-                    unregister(userContext);
-                });
+        logger.debug("dispose {}", this);
+        getUsers().forEach(userContext -> {
+            userContext.setChatRoom(null);
+            unregister(userContext);
+        });
     }
+
 }
