@@ -25,12 +25,12 @@ public class Connection {
 
     private Optional<UserContext> context = Optional.empty();
 
-    public Connection(Socket socket, long timeoutMillis) throws IOException {
+    public Connection(Socket socket) throws IOException {
         this.socket = socket;
         this.in = socket.getInputStream();
         this.out = socket.getOutputStream();
         this.inputBuffer = ByteBuffer.allocate(BUF_SIZE);
-        this.timeout = new Timeout(timeoutMillis);
+        this.timeout = new Timeout();
     }
 
     @Override
@@ -68,12 +68,12 @@ public class Connection {
         return socket.isClosed() && getContext().isEmpty();
     }
 
-    public boolean isTimeout() {
-        return timeout.isTimeout();
+    public boolean isTimeout(long millis) {
+        return timeout.isTimeout(millis);
     }
 
     public void keepAlive() {
-        timeout.updateActivity();
+        timeout.update();
     }
 
     public Optional<String> readLine() {
@@ -108,8 +108,7 @@ public class Connection {
 
     public void writeLine(String text) {
         try {
-            out.write(text.getBytes(DEFAULT_CHARSET));
-            out.write("\n".getBytes(DEFAULT_CHARSET));
+            out.write((text + "\n").getBytes(DEFAULT_CHARSET));
             out.flush();
         } catch (IOException e) {
             close();
