@@ -12,10 +12,6 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
-import java.util.Arrays;
-import java.util.Iterator;
-import java.util.stream.IntStream;
-import java.util.stream.Stream;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -43,7 +39,7 @@ class ConnectionTest {
         when(socket.getInputStream()).thenReturn(in);
         when(socket.getOutputStream()).thenReturn(out);
 
-        sut = new Connection(socket, TEST_TIMEOUT);
+        sut = new Connection(socket);
     }
 
     @AfterEach
@@ -95,14 +91,14 @@ class ConnectionTest {
     void isTimeout_false_success() throws InterruptedException {
         long sleepValue = TEST_TIMEOUT - TEST_TIMEOUT_STEP;
         Thread.sleep(sleepValue);
-        assertThat(sut.isTimeout(), is(false));
+        assertThat(sut.isTimeout(TEST_TIMEOUT), is(false));
     }
 
     @Test
     void isTimeout_true_success() throws InterruptedException {
         long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
         Thread.sleep(sleepValue);
-        assertThat(sut.isTimeout(), is(true));
+        assertThat(sut.isTimeout(TEST_TIMEOUT), is(true));
     }
 
     @Test
@@ -110,11 +106,11 @@ class ConnectionTest {
         long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
         Thread.sleep(sleepValue);
 
-        boolean timeoutTrue = sut.isTimeout();
+        boolean timeoutTrue = sut.isTimeout(TEST_TIMEOUT);
         sut.keepAlive();
 
         assertThat(timeoutTrue, is(true));
-        assertThat(sut.isTimeout(), is(false));
+        assertThat(sut.isTimeout(TEST_TIMEOUT), is(false));
     }
 
     @Test
