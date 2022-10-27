@@ -10,6 +10,7 @@ public class EchoCommand extends AbstractCommand {
 
     @Override
     public void accept(Connection connection, String param) {
-        if (!param.isEmpty()) connection.writeLine(param);
+        if (param == null || param.isEmpty()) return;
+        connection.writeLine(param);
     }
 }
