@@ -19,18 +19,20 @@ public class LoginCommand extends AbstractCommand {
     @Override
     public void accept(Connection connection, String param) {
         if (connection.getContext().isPresent()) return;
+        if (param == null || param.isBlank()) return;
 
-        if (param != null && !param.isEmpty()) {
-            User user = new User(param);
+        String[] parts = param.split(" ");
+        String userName = parts[0];
 
-            UserContext context = new UserContext(user, connection);
-            connection.setContext(context);
+        User user = new User(userName);
 
-            logger.debug("new {}", context);
+        UserContext context = new UserContext(user, connection);
+        connection.setContext(context);
 
-            chatRoom.register(context);
-            context.setChatRoom(chatRoom);
-        }
+        logger.debug("new {}", context);
+
+        chatRoom.register(context);
+        context.setChatRoom(chatRoom);
     }
 
 }
