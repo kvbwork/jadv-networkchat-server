@@ -12,6 +12,7 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.Socket;
 import java.nio.ByteBuffer;
+import java.util.Optional;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
@@ -19,8 +20,8 @@ import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.*;
 
 class ConnectionTest {
-    static final long TEST_TIMEOUT = 100;
-    static final long TEST_TIMEOUT_STEP = 50;
+    static final long TEST_TIMEOUT = 50;
+    static final long TEST_TIMEOUT_STEP = 25;
     static final String TEST_STRING = "TEST_STRING";
 
     UserContext testContext;
@@ -64,7 +65,7 @@ class ConnectionTest {
     @Test
     void close_socket_success() throws IOException {
         sut.close();
-        Mockito.verify(socket, times(1)).close();
+        verify(socket, times(1)).close();
     }
 
     @Test
@@ -102,7 +103,7 @@ class ConnectionTest {
     }
 
     @Test
-    void keepAlive_success() throws InterruptedException {
+    void keepAlive_update_timeout_success() throws InterruptedException {
         long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
         Thread.sleep(sleepValue);
 
@@ -132,15 +133,49 @@ class ConnectionTest {
         assertThat(result, equalTo(expectedString));
     }
 
+    @Test
+    void readLine_update_timeout_success() throws IOException, InterruptedException {
+        String expectedString = TEST_STRING;
+
+        byte[] stringBytes = (expectedString + "\n").getBytes();
+        ByteArrayInputStream byteArrayInputStream = new ByteArrayInputStream(stringBytes);
+        when(in.available()).then(mock -> byteArrayInputStream.available());
+        when(in.read()).then(mock -> byteArrayInputStream.read());
+
+        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
+        Thread.sleep(sleepValue);
+
+        boolean isTimeoutAfterSleep = sut.isTimeout(TEST_TIMEOUT);
+        String result = sut.readLine().orElseThrow();
+        boolean isTimeoutAfterDataRead = sut.isTimeout(TEST_TIMEOUT);
+
+        assertThat(result, equalTo(expectedString));
+        assertThat(isTimeoutAfterSleep, is(true));
+        assertThat(isTimeoutAfterDataRead, is(false));
+    }
+
+    @Test
+    void readLine_update_timeout_failure() throws InterruptedException {
+        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
+        Thread.sleep(sleepValue);
+
+        boolean isTimeoutAfterSleep = sut.isTimeout(TEST_TIMEOUT);
+        Optional<String> result = sut.readLine();
+        boolean isTimeoutAfterDataRead = sut.isTimeout(TEST_TIMEOUT);
+
+        assertThat(result.isEmpty(), is(true));
+        assertThat(isTimeoutAfterSleep, is(true));
+        assertThat(isTimeoutAfterDataRead, is(true));
+    }
 
     @Test
     void writeLine_calls_OutputStream_write_success() throws IOException {
         sut.writeLine(TEST_STRING);
-        Mockito.verify(out, atLeastOnce()).write(any(byte[].class));
+        verify(out, atLeastOnce()).write(any(byte[].class));
     }
 
     @Test
-    void readBufToString() {
+    void readBufToString_success() {
         ByteBuffer buf = ByteBuffer.wrap(TEST_STRING.getBytes());
         String result = sut.readBufToString(buf);
         assertThat(result, equalTo(TEST_STRING));
