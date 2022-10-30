@@ -7,9 +7,9 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 import java.util.Collection;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentLinkedQueue;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
@@ -18,7 +18,7 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class ConnectionsWorkerTest {
-    static final long TICK_VALUE = 50;
+    static final long TICK_VALUE = 25;
     static final String TEST_STRING = "TEST_STRING";
 
     ConnectionInputHandler testHandler;
@@ -35,7 +35,7 @@ class ConnectionsWorkerTest {
         testConnection = mock(Connection.class);
         when(testConnection.readLine()).thenReturn(Optional.empty());
 
-        connectionsStorage = new ConcurrentLinkedQueue<>(List.of(testConnection));
+        connectionsStorage = new LinkedList<>(List.of(testConnection));
 
         sut = new ConnectionsWorker(connectionsStorage, List.of(testHandler));
 
@@ -79,10 +79,12 @@ class ConnectionsWorkerTest {
     @Test
     void remove_closed_connection_success() throws InterruptedException {
         when(testConnection.isClosed()).thenReturn(true);
-        int oldConnectionsCount = connectionsStorage.size();
+        boolean containsBeforeClean = connectionsStorage.contains(testConnection);
         connectionsWorkerThread.start();
         Thread.sleep(TICK_VALUE);
-        assertThat(oldConnectionsCount > connectionsStorage.size(), is(true));
+        boolean containsAfterClean = connectionsStorage.contains(testConnection);
+        assertThat(containsBeforeClean, is(true));
+        assertThat(containsAfterClean, is(false));
     }
 
     @Test
@@ -90,6 +92,6 @@ class ConnectionsWorkerTest {
         when(testConnection.readLine()).thenReturn(Optional.of(TEST_STRING));
         connectionsWorkerThread.start();
         Thread.sleep(TICK_VALUE);
-        verify(testHandler, atLeastOnce()).handle(eq(TEST_STRING), any(Connection.class));
+        verify(testHandler, atLeastOnce()).handle(eq(TEST_STRING), eq(testConnection));
     }
 }
