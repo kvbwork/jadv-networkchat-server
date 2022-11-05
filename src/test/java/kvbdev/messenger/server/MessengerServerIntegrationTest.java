@@ -1,5 +1,6 @@
 package kvbdev.messenger.server;
 
+import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
@@ -7,20 +8,23 @@ import org.junit.jupiter.api.Test;
 import java.io.*;
 import java.net.Socket;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
 import static kvbdev.messenger.server.impl.ChatHandler.WHISPER_PREFIX;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
 class MessengerServerIntegrationTest {
-    static final long TICK_VALUE = 50;
-    static final long CONNECTION_TIMEOUT = TICK_VALUE * 2;
+    static final long TEST_TIMEOUT_VALUE = 50;
+    static final long LESS_THAN_TIMEOUT = TEST_TIMEOUT_VALUE - 25;
+    static final long MORE_THAN_TIMEOUT = TEST_TIMEOUT_VALUE + 25;
     static final String TEST_STRING = "TEST_STRING";
     static final String TEST_ADDRESS = "127.0.0.1";
     static final int TEST_PORT = 32555;
     static MessengerServer server;
 
-    static class TestClient {
+    static class TestClient implements Closeable {
         public final String name;
         public final Socket socket;
         public final BufferedReader input;
@@ -43,7 +47,7 @@ class MessengerServerIntegrationTest {
             return input.readLine();
         }
 
-        public boolean tryEcho() {
+        public boolean tryKeepAlive() {
             try {
                 writeLine("/echo " + TEST_STRING);
                 if (input.read() == -1) return false;
@@ -52,6 +56,11 @@ class MessengerServerIntegrationTest {
                 return false;
             }
             return true;
+        }
+
+        @Override
+        public void close() throws IOException {
+            socket.close();
         }
     }
 
@@ -62,96 +71,95 @@ class MessengerServerIntegrationTest {
 
     @BeforeAll
     static void beforeAll() throws IOException {
+        Awaitility.setDefaultTimeout(TEST_TIMEOUT_VALUE * 2, MILLISECONDS);
+        Awaitility.setDefaultPollInterval(10, MILLISECONDS);
+
         server = new MessengerServer(TEST_PORT);
-        server.connectionsWorker.setConnectionTimeout(CONNECTION_TIMEOUT);
+        server.connectionsWorker.setConnectionTimeout(TEST_TIMEOUT_VALUE);
         server.start();
     }
 
     @AfterAll
     static void afterAll() throws IOException {
+        Awaitility.reset();
         server.close();
     }
 
     @Test
     void connection_success() throws IOException {
-        TestClient testClient = nextTestClient();
-        boolean isConnectionAlive = !testClient.socket.isClosed();
+        try (TestClient testClient = nextTestClient()) {
+            boolean isConnectionAlive = !testClient.socket.isClosed();
 
-        assertThat(isConnectionAlive, is(true));
-        testClient.socket.close();
+            assertThat(isConnectionAlive, is(true));
+        }
     }
 
     @Test
     void disconnection_success() throws IOException {
-        TestClient testClient = nextTestClient();
-        testClient.socket.close();
-        boolean isConnectionAlive = testClient.tryEcho();
+        try (TestClient testClient = nextTestClient()) {
+            testClient.socket.close();
+            boolean isConnectionAlive = testClient.tryKeepAlive();
 
-        assertThat(isConnectionAlive, is(false));
+            assertThat(isConnectionAlive, is(false));
+        }
     }
 
     @Test
-    void timeout_success() throws InterruptedException, IOException {
-        TestClient testClient = nextTestClient();
-        boolean isAliveBeforeTimeout = testClient.tryEcho();
-        Thread.sleep(CONNECTION_TIMEOUT + TICK_VALUE);
-        boolean isAliveAfterTimeout = testClient.tryEcho();
+    void timeout_success() throws IOException {
+        try (TestClient testClient = nextTestClient()) {
+            await().atMost(LESS_THAN_TIMEOUT, MILLISECONDS)
+                    .until(testClient::tryKeepAlive, is(true));
 
-        assertThat(isAliveBeforeTimeout, is(true));
-        assertThat(isAliveAfterTimeout, is(false));
-        testClient.socket.close();
+            await().pollDelay(MORE_THAN_TIMEOUT, MILLISECONDS)
+                    .until(testClient::tryKeepAlive, is(false));
+        }
     }
 
     @Test
     void login_and_sayAll_success() throws IOException {
-        TestClient testClient1 = nextTestClient();
-        TestClient testClient2 = nextTestClient();
+        try (TestClient testClient1 = nextTestClient();
+             TestClient testClient2 = nextTestClient()) {
 
-        testClient1.writeLine("/login " + testClient1.name);
-        testClient2.writeLine("/login " + testClient2.name);
-        testClient2.writeLine(TEST_STRING);
-        String receivedMessage = testClient1.readLine();
+            testClient1.writeLine("/login " + testClient1.name);
+            testClient2.writeLine("/login " + testClient2.name);
+            testClient2.writeLine(TEST_STRING);
+            String receivedMessage = testClient1.readLine();
 
-        assertThat(receivedMessage, containsString(TEST_STRING));
-
-        testClient1.socket.close();
-        testClient2.socket.close();
+            assertThat(receivedMessage, containsString(TEST_STRING));
+        }
     }
 
     @Test
     void login_and_whisper_success() throws IOException {
-        TestClient testClient1 = nextTestClient();
-        TestClient testClient2 = nextTestClient();
+        try (TestClient testClient1 = nextTestClient();
+             TestClient testClient2 = nextTestClient()) {
 
-        testClient1.writeLine("/login " + testClient1.name);
-        testClient2.writeLine("/login " + testClient2.name);
+            testClient1.writeLine("/login " + testClient1.name);
+            testClient2.writeLine("/login " + testClient2.name);
 
-        String text = WHISPER_PREFIX + testClient1.name + " " + TEST_STRING;
-        testClient2.writeLine(text);
-        String receivedMessage = testClient1.readLine();
+            String text = WHISPER_PREFIX + testClient1.name + " " + TEST_STRING;
+            testClient2.writeLine(text);
+            String receivedMessage = testClient1.readLine();
 
-        assertThat(receivedMessage, containsString(testClient2.name));
-        assertThat(receivedMessage, containsString(testClient1.name));
-        assertThat(receivedMessage, containsString(TEST_STRING));
-
-        testClient1.socket.close();
-        testClient2.socket.close();
+            assertThat(receivedMessage, containsString(testClient2.name));
+            assertThat(receivedMessage, containsString(testClient1.name));
+            assertThat(receivedMessage, containsString(TEST_STRING));
+        }
     }
 
     @Test
-    void login_and_exit_success() throws IOException, InterruptedException {
-        TestClient testClient = nextTestClient();
-        testClient.writeLine("/login " + testClient.name);
-        boolean isAliveBeforeExit = testClient.tryEcho();
+    void login_and_exit_success() throws IOException {
+        try (TestClient testClient = nextTestClient()) {
+            testClient.writeLine("/login " + testClient.name);
 
-        testClient.writeLine("/exit");
-        Thread.sleep(TICK_VALUE);
-        boolean isAliveAfterExit = testClient.tryEcho();
+            await().atMost(TEST_TIMEOUT_VALUE, MILLISECONDS)
+                    .until(testClient::tryKeepAlive, is(true));
 
-        assertThat(isAliveBeforeExit, is(true));
-        assertThat(isAliveAfterExit, is(false));
+            testClient.writeLine("/exit");
 
-        testClient.socket.close();
+            await().atMost(TEST_TIMEOUT_VALUE, MILLISECONDS)
+                    .until(testClient::tryKeepAlive, is(false));
+        }
     }
 
 }
