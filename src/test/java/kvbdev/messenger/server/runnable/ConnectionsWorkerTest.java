@@ -2,15 +2,17 @@ package kvbdev.messenger.server.runnable;
 
 import kvbdev.messenger.server.Connection;
 import kvbdev.messenger.server.ConnectionInputHandler;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.*;
 
 import java.util.Collection;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.ArgumentMatchers.any;
@@ -18,7 +20,6 @@ import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.*;
 
 class ConnectionsWorkerTest {
-    static final long TICK_VALUE = 25;
     static final String TEST_STRING = "TEST_STRING";
 
     ConnectionInputHandler testHandler;
@@ -26,6 +27,17 @@ class ConnectionsWorkerTest {
     Collection<Connection> connectionsStorage;
     ConnectionsWorker sut;
     Thread connectionsWorkerThread;
+
+    @BeforeAll
+    static void beforeAll() {
+        Awaitility.setDefaultPollInterval(25, MILLISECONDS);
+        Awaitility.setDefaultTimeout(5, SECONDS);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        Awaitility.reset();
+    }
 
     @BeforeEach
     void setUp() {
@@ -53,45 +65,39 @@ class ConnectionsWorkerTest {
     }
 
     @Test
-    void thread_start_success() throws InterruptedException {
+    void thread_start_success() {
         connectionsWorkerThread.start();
-        Thread.sleep(TICK_VALUE);
-        assertThat(connectionsWorkerThread.isAlive(), is(true));
+        await().until(connectionsWorkerThread::isAlive);
     }
 
     @Test
-    void thread_interrupt_success() throws InterruptedException {
+    void thread_interrupt_success() {
         connectionsWorkerThread.start();
-        Thread.sleep(TICK_VALUE);
+        await().until(connectionsWorkerThread::isAlive);
         connectionsWorkerThread.interrupt();
-        Thread.sleep(TICK_VALUE);
-        assertThat(connectionsWorkerThread.isAlive(), is(false));
+        await().until(() -> connectionsWorkerThread.isAlive(), is(false));
     }
 
     @Test
-    void connection_timeout_calls_close_success() throws InterruptedException {
+    void connection_timeout_calls_close_success() {
         when(testConnection.isTimeout(anyLong())).thenReturn(true);
         connectionsWorkerThread.start();
-        Thread.sleep(TICK_VALUE);
-        verify(testConnection, atLeastOnce()).close();
+        await().untilAsserted(() -> verify(testConnection, atLeastOnce()).close());
     }
 
     @Test
-    void remove_closed_connection_success() throws InterruptedException {
+    void remove_closed_connection_success() {
         when(testConnection.isClosed()).thenReturn(true);
-        boolean containsBeforeClean = connectionsStorage.contains(testConnection);
+        assertThat("contains before removing", connectionsStorage.contains(testConnection), is(true));
         connectionsWorkerThread.start();
-        Thread.sleep(TICK_VALUE);
-        boolean containsAfterClean = connectionsStorage.contains(testConnection);
-        assertThat(containsBeforeClean, is(true));
-        assertThat(containsAfterClean, is(false));
+        await("not contains after removing").until(() -> connectionsStorage.contains(testConnection), is(false));
     }
 
     @Test
-    void read_connection_calls_handler_success() throws InterruptedException {
+    void read_connection_calls_handler_success() {
         when(testConnection.readLine()).thenReturn(Optional.of(TEST_STRING));
         connectionsWorkerThread.start();
-        Thread.sleep(TICK_VALUE);
-        verify(testHandler, atLeastOnce()).handle(eq(TEST_STRING), eq(testConnection));
+        await("process the read string").untilAsserted(() ->
+                verify(testHandler, atLeastOnce()).handle(eq(TEST_STRING), eq(testConnection)));
     }
 }

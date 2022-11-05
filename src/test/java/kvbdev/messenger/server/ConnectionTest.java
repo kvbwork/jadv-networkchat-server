@@ -1,10 +1,8 @@
 package kvbdev.messenger.server;
 
+import org.awaitility.Awaitility;
 import org.hamcrest.Matchers;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
+import org.junit.jupiter.api.*;
 
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
@@ -14,14 +12,17 @@ import java.net.Socket;
 import java.nio.ByteBuffer;
 import java.util.Optional;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.*;
 
 class ConnectionTest {
-    static final long TEST_TIMEOUT = 50;
-    static final long TEST_TIMEOUT_STEP = 25;
+    static final long TEST_TIMEOUT_VALUE = 50;
+    static final long LESS_THAN_TIMEOUT = TEST_TIMEOUT_VALUE - 25;
+    static final long MORE_THAN_TIMEOUT = TEST_TIMEOUT_VALUE + 25;
     static final String TEST_STRING = "TEST_STRING";
 
     UserContext testContext;
@@ -29,6 +30,17 @@ class ConnectionTest {
     OutputStream out;
     Socket socket;
     Connection sut;
+
+    @BeforeAll
+    static void beforeAll() {
+        Awaitility.setDefaultTimeout(TEST_TIMEOUT_VALUE * 2, MILLISECONDS);
+        Awaitility.setDefaultPollInterval(10, MILLISECONDS);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        Awaitility.reset();
+    }
 
     @BeforeEach
     void setUp() throws IOException {
@@ -89,29 +101,25 @@ class ConnectionTest {
     }
 
     @Test
-    void isTimeout_false_success() throws InterruptedException {
-        long sleepValue = TEST_TIMEOUT - TEST_TIMEOUT_STEP;
-        Thread.sleep(sleepValue);
-        assertThat(sut.isTimeout(TEST_TIMEOUT), is(false));
+    void isTimeout_false_success() {
+        await().atMost(LESS_THAN_TIMEOUT, MILLISECONDS)
+                .until(() -> sut.isTimeout(TEST_TIMEOUT_VALUE), is(false));
     }
 
     @Test
-    void isTimeout_true_success() throws InterruptedException {
-        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
-        Thread.sleep(sleepValue);
-        assertThat(sut.isTimeout(TEST_TIMEOUT), is(true));
+    void isTimeout_true_success() {
+        await().atMost(MORE_THAN_TIMEOUT, MILLISECONDS)
+                .until(() -> sut.isTimeout(TEST_TIMEOUT_VALUE), is(true));
     }
 
     @Test
-    void keepAlive_update_timeout_success() throws InterruptedException {
-        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
-        Thread.sleep(sleepValue);
+    void keepAlive_update_timeout_success() {
+        await().atMost(MORE_THAN_TIMEOUT, MILLISECONDS)
+                .until(() -> sut.isTimeout(TEST_TIMEOUT_VALUE), is(true));
 
-        boolean timeoutTrue = sut.isTimeout(TEST_TIMEOUT);
         sut.keepAlive();
 
-        assertThat(timeoutTrue, is(true));
-        assertThat(sut.isTimeout(TEST_TIMEOUT), is(false));
+        assertThat(sut.isTimeout(TEST_TIMEOUT_VALUE), is(false));
     }
 
     @Test
@@ -134,7 +142,7 @@ class ConnectionTest {
     }
 
     @Test
-    void readLine_update_timeout_success() throws IOException, InterruptedException {
+    void readLine_update_timeout_success() throws IOException {
         String expectedString = TEST_STRING;
 
         byte[] stringBytes = (expectedString + "\n").getBytes();
@@ -142,30 +150,26 @@ class ConnectionTest {
         when(in.available()).then(mock -> byteArrayInputStream.available());
         when(in.read()).then(mock -> byteArrayInputStream.read());
 
-        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
-        Thread.sleep(sleepValue);
+        await().atMost(MORE_THAN_TIMEOUT, MILLISECONDS)
+                .until(() -> sut.isTimeout(TEST_TIMEOUT_VALUE), is(true));
 
-        boolean isTimeoutAfterSleep = sut.isTimeout(TEST_TIMEOUT);
-        String result = sut.readLine().orElseThrow();
-        boolean isTimeoutAfterDataRead = sut.isTimeout(TEST_TIMEOUT);
+        String readResult = sut.readLine().orElseThrow();
+        boolean timeoutAfterDataRead = sut.isTimeout(TEST_TIMEOUT_VALUE);
 
-        assertThat(result, equalTo(expectedString));
-        assertThat(isTimeoutAfterSleep, is(true));
-        assertThat(isTimeoutAfterDataRead, is(false));
+        assertThat(readResult, equalTo(expectedString));
+        assertThat(timeoutAfterDataRead, is(false));
     }
 
     @Test
-    void readLine_update_timeout_failure() throws InterruptedException {
-        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
-        Thread.sleep(sleepValue);
+    void readLine_update_timeout_failure(){
+        await().atMost(MORE_THAN_TIMEOUT, MILLISECONDS)
+                .until(() -> sut.isTimeout(TEST_TIMEOUT_VALUE), is(true));
 
-        boolean isTimeoutAfterSleep = sut.isTimeout(TEST_TIMEOUT);
-        Optional<String> result = sut.readLine();
-        boolean isTimeoutAfterDataRead = sut.isTimeout(TEST_TIMEOUT);
+        Optional<String> readResult = sut.readLine();
+        boolean timeoutAfterDataRead = sut.isTimeout(TEST_TIMEOUT_VALUE);
 
-        assertThat(result.isEmpty(), is(true));
-        assertThat(isTimeoutAfterSleep, is(true));
-        assertThat(isTimeoutAfterDataRead, is(true));
+        assertThat(readResult.isEmpty(), is(true));
+        assertThat(timeoutAfterDataRead, is(true));
     }
 
     @Test

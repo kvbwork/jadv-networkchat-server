@@ -1,15 +1,17 @@
 package kvbdev.messenger.server.runnable;
 
 import kvbdev.messenger.server.Connection;
-import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.*;
 import org.mockito.ArgumentCaptor;
 
 import java.io.IOException;
 import java.net.Socket;
 import java.util.function.Consumer;
 
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static java.util.concurrent.TimeUnit.SECONDS;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -20,11 +22,21 @@ class ConnectionAcceptorTest {
     interface TestConnectionConsumer extends Consumer<Connection> {
     }
 
-    static long TICK_VALUE = 25;
     static int TEST_PORT = 30222;
     ConnectionAcceptor connectionAcceptor;
     Thread connectionAcceptorThread;
     TestConnectionConsumer testConnectionConsumer;
+
+    @BeforeAll
+    static void beforeAll() {
+        Awaitility.setDefaultPollInterval(25, MILLISECONDS);
+        Awaitility.setDefaultTimeout(5, SECONDS);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        Awaitility.reset();
+    }
 
     @BeforeEach
     void setUp() throws IOException {
@@ -44,42 +56,37 @@ class ConnectionAcceptorTest {
     }
 
     @Test
-    void start_thread_success() throws InterruptedException {
-        Thread.sleep(TICK_VALUE);
-        assertThat(connectionAcceptorThread.isAlive(), is(true));
+    void start_thread_success() {
+        await().until(connectionAcceptorThread::isAlive);
     }
 
     @Test
-    void start_opens_ServerSocket_success() throws InterruptedException {
-        Thread.sleep(TICK_VALUE);
-        assertThat(connectionAcceptor.serverSocket.isClosed(), is(false));
+    void start_opens_ServerSocket_success() {
+        await().until(() -> connectionAcceptor.serverSocket.isClosed(), is(false));
     }
 
     @Test
-    void closing_kills_thread_success() throws InterruptedException, IOException {
-        Thread.sleep(TICK_VALUE);
+    void closing_kills_thread_success() throws IOException {
         connectionAcceptor.close();
-        Thread.sleep(TICK_VALUE);
-        assertThat(connectionAcceptorThread.isAlive(), is(false));
+        await().until(() -> connectionAcceptorThread.isAlive(), is(false));
     }
 
     @Test
-    void closing_ServerSocket_success() throws InterruptedException, IOException {
-        Thread.sleep(TICK_VALUE);
+    void closing_ServerSocket_success() throws IOException {
         connectionAcceptor.close();
-        Thread.sleep(TICK_VALUE);
-        assertThat(connectionAcceptor.serverSocket.isClosed(), is(true));
+        await().until(() -> connectionAcceptor.serverSocket.isClosed(), is(true));
     }
 
     @Test
-    void accept_Connection_success() throws IOException, InterruptedException {
+    void accept_Connection_success() throws IOException {
         Socket localClientSocket = new Socket("127.0.0.1", TEST_PORT);
-        Thread.sleep(TICK_VALUE);
         ArgumentCaptor<Connection> connectionArgumentCaptor = ArgumentCaptor.forClass(Connection.class);
 
-        verify(testConnectionConsumer, times(1)).accept(connectionArgumentCaptor.capture());
-        int expectedPort = connectionArgumentCaptor.getValue().getSocket().getPort();
-        assertThat(expectedPort, equalTo(localClientSocket.getLocalPort()));
+        await().untilAsserted(() ->
+                verify(testConnectionConsumer, times(1)).accept(connectionArgumentCaptor.capture()));
+
+        int capturedClientLocalPort = connectionArgumentCaptor.getValue().getSocket().getPort();
+        assertThat(capturedClientLocalPort, equalTo(localClientSocket.getLocalPort()));
 
         localClientSocket.close();
     }

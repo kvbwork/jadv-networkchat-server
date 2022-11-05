@@ -1,54 +1,60 @@
 package kvbdev.messenger.server.util;
 
-import org.junit.jupiter.api.Test;
+import org.awaitility.Awaitility;
+import org.junit.jupiter.api.*;
 
-import java.util.concurrent.TimeUnit;
-
+import static java.util.concurrent.TimeUnit.MILLISECONDS;
+import static kvbdev.messenger.server.util.Timeout.INFINITE_TIMEOUT;
+import static org.awaitility.Awaitility.await;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 class TimeoutTest {
-    public static long TEST_TIMEOUT = 100;
-    public static long TEST_TIMEOUT_STEP = 50;
+    static final long TEST_TIMEOUT_VALUE = 50;
 
-    @Test
-    void isTimeout_true_success() throws InterruptedException {
-        Timeout timeout = new Timeout();
-        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
-        TimeUnit.MILLISECONDS.sleep(sleepValue);
-        assertThat(timeout.isTimeout(TEST_TIMEOUT), is(true));
+    Timeout timeout;
+
+    @BeforeAll
+    static void beforeAll() {
+        Awaitility.setDefaultTimeout(TEST_TIMEOUT_VALUE * 2, MILLISECONDS);
+        Awaitility.setDefaultPollInterval(10, MILLISECONDS);
+    }
+
+    @AfterAll
+    static void afterAll() {
+        Awaitility.reset();
+    }
+
+    @BeforeEach
+    void setUp() {
+        timeout = new Timeout();
+    }
+
+    @AfterEach
+    void tearDown() {
+        timeout = null;
     }
 
     @Test
-    void isTimeout_false_success() throws InterruptedException {
-        Timeout timeout = new Timeout();
-        long sleepValue = TEST_TIMEOUT - TEST_TIMEOUT_STEP;
-        TimeUnit.MILLISECONDS.sleep(sleepValue);
-        assertThat(timeout.isTimeout(TEST_TIMEOUT), is(false));
+    void isTimeout_true_success() {
+        await().until(() -> timeout.isTimeout(TEST_TIMEOUT_VALUE), is(true));
     }
 
     @Test
-    void isTimeout_infinite_false_success() throws InterruptedException {
-        Timeout timeout = new Timeout();
-        long sleepValue = TEST_TIMEOUT;
-        TimeUnit.MILLISECONDS.sleep(sleepValue);
-        assertThat(timeout.isTimeout(0), is(false));
+    void isTimeout_false_success() {
+        assertThat(timeout.isTimeout(TEST_TIMEOUT_VALUE), is(false));
     }
 
     @Test
-    void update_success() throws InterruptedException {
-        Timeout timeout = new Timeout();
-        long sleepValue = TEST_TIMEOUT + TEST_TIMEOUT_STEP;
+    void isTimeout_infinite_false_success() {
+        await().until(() -> timeout.isTimeout(TEST_TIMEOUT_VALUE), is(true));
+        assertThat(timeout.isTimeout(INFINITE_TIMEOUT), is(false));
+    }
 
-        TimeUnit.MILLISECONDS.sleep(sleepValue);
-        boolean timeoutBeforeUpdate = timeout.isTimeout(TEST_TIMEOUT);
-
+    @Test
+    void update_success() {
+        await().until(() -> timeout.isTimeout(TEST_TIMEOUT_VALUE), is(true));
         timeout.update();
-
-        TimeUnit.MILLISECONDS.sleep(TEST_TIMEOUT_STEP);
-        boolean timeoutAfterUpdate = timeout.isTimeout(TEST_TIMEOUT);
-
-        assertThat(timeoutBeforeUpdate, is(true));
-        assertThat(timeoutAfterUpdate, is(false));
+        assertThat(timeout.isTimeout(TEST_TIMEOUT_VALUE), is(false));
     }
 }
